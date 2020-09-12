@@ -5,28 +5,7 @@ import dlib
 import cv2
 import time
 
-
-vs = cv2.VideoCapture(0)
-frame_width = int(vs.get(3))
-frame_height = int(vs.get(4))
-
-out = cv2.VideoWriter('output.avi',cv2.VideoWriter_fourcc(*'XVID'), 10, (frame_width,frame_height))
-while True:
-    ret, frame = vs.read()
-    if ret == True:  
-    # Write the frame into the file 'output.avi'
-        out.write(frame)
- 
-    # Display the resulting frame    
-    cv2.imshow('frame',frame)
- 
-    # Press Q on keyboard to stop recording
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
- 
-
 # No i did not just reuse this block from imutils, shut up you accuser
-
 def shape_to_np(shape, dtype = int):
     # initialize the list of (x, y)-coordinates
     coords = np.zeros((shape.num_parts, 2), dtype=dtype)
@@ -55,17 +34,6 @@ def eye_aspect_ratio(eye):
     # return the eye aspect ratio
     return ear
  
- 
-# define two constants, one for the eye aspect ratio to indicate
-# blink and then a second constant for the number of consecutive
-# frames the eye must be below the threshold
-EYE_AR_THRESH = 0.3  #an average value 
-EYE_AR_CONSEC_FRAMES = 3
-
-# initialize the frame counters and the total number of blinks
-COUNTER = 0
-TOTAL = 0
-
 # initialize dlib's face detector (HOG-based) and then create
 # the facial landmark predictor
 print("[INFO] loading facial landmark predictor...")
@@ -77,78 +45,130 @@ predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
 (lStart, lEnd) = (42, 48)
 (rStart, rEnd) = (36, 42)
 
+vs = cv2.VideoCapture(0)
+frame_width = int(vs.get(3))
+frame_height = int(vs.get(4))
+ears = []
+out = cv2.VideoWriter('output.avi',cv2.VideoWriter_fourcc(*'XVID'), 10, (frame_width,frame_height))
+
+count = 0
+
+while count < 40:
+    ret, frame = vs.read()
+    
+    frame= cv2.resize(frame, (frame_width,frame_height),fx=0.5,fy=0.5)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    
+    if ret == True:  
+    # Write the frame into the file 'output.avi'
+        out.write(frame)
+    # Display the resulting frame    
+    cv2.imshow('frame',frame)
+    rects = detector(gray, 0)
+    for rect in rects:
+            shape = predictor(gray, rect)
+            shape = shape_to_np(shape)
+            leftEye = shape[lStart:lEnd]
+            rightEye = shape[rStart:rEnd]
+            leftEAR = eye_aspect_ratio(leftEye)
+            rightEAR = eye_aspect_ratio(rightEye)
+            ear = (leftEAR + rightEAR) / 2.0
+            ears.append(ear)         
+    key = cv2.waitKey(1) & 0xFF
+    count += 1
+
+vs.release()    #release the video stream
+
+# define two values, one for the eye aspect ratio to indicate
+# blink and then a second constant for the number of consecutive
+# frames the eye must be below the threshold
+
+try:
+    EYE_AR_THRESH = sum(ears)/len(ears)     #an average EAR is calculated from the recorded video
+    EYE_AR_THRESH= 1.05 * EYE_AR_THRESH     #multiplied by a tested sensitivity correction
+    EYE_AR_CONSEC_FRAMES = 3
+except(ZeroDivisionError):
+    print("Please check your lighting conditions or camera in case no output is visible.")
+else:
+    print("Something else went wrong")
+
+# initialize the frame counters and the total number of blinks
+COUNTER = 0
+TOTAL = 0
+
 # start the video stream thread
 print("[INFO] starting video stream thread...")
 
 cap = cv2.VideoCapture("output.avi")
 print("file capturing has begun ")
-# loop over frames from the video stream
 
-# initialize a frame counter
+if(cap.isOpened() == False):
+        print("There was an error opening the video")
 
-count = 0
-
-while (cap.isOpened() and count != 40):
+# loop over frames from the video file stream
+while (cap.isOpened()):
 
     # grab the frame from the threaded video file stream, resize it, and convert it to grayscale channels)
     ret, frame = cap.read()
-    count += 1
-    frame= cv2.resize(frame, (frame_width,frame_height),fx=0.5,fy=0.5)
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    # detect faces in the grayscale frame
-    rects = detector(gray, 0)
+    if ret == True:
+        frame= cv2.resize(frame, (frame_width,frame_height),fx=0.5,fy=0.5)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # detect faces in the grayscale frame
+        rects = detector(gray, 0)
 
-    # loop over the face detections
-    for rect in rects:
-        
-        # determine the facial landmarks for the face region, then convert the facial landmark (x, y)-coordinates to a NumPy array
-        shape = predictor(gray, rect)
-        shape = shape_to_np(shape)
-        
-        # extract the left and right eye coordinates, then use the coordinates to compute the eye aspect ratio for both eyes
-        leftEye = shape[lStart:lEnd]
-        rightEye = shape[rStart:rEnd]
-        leftEAR = eye_aspect_ratio(leftEye)
-        rightEAR = eye_aspect_ratio(rightEye)
+        # loop over the face detections
+        for rect in rects:
+            
+            # determine the facial landmarks for the face region, then convert the facial landmark (x, y)-coordinates to a NumPy array
+            shape = predictor(gray, rect)
+            shape = shape_to_np(shape)
+            
+            # extract the left and right eye coordinates, then use the coordinates to compute the eye aspect ratio for both eyes
+            leftEye = shape[lStart:lEnd]
+            rightEye = shape[rStart:rEnd]
+            leftEAR = eye_aspect_ratio(leftEye)
+            rightEAR = eye_aspect_ratio(rightEye)
 
-        # average the eye aspect ratio together for both eyes
-        ear = (leftEAR + rightEAR) / 2.0
+            # average the eye aspect ratio together for both eyes
+            ear = (leftEAR + rightEAR) / 2.0
 
-        # compute the convex hull for the left and right eye, then visualize each of the eyes
-        leftEyeHull = cv2.convexHull(leftEye)
-        rightEyeHull = cv2.convexHull(rightEye)
-        cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
-        cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
+            # compute the convex hull for the left and right eye, then visualize each of the eyes
+            leftEyeHull = cv2.convexHull(leftEye)
+            rightEyeHull = cv2.convexHull(rightEye)
+            cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
+            cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
 
-        # check to see if the eye aspect ratio is below the blink threshold, and if so, increment the blink frame counter
-        if ear < EYE_AR_THRESH:
-            COUNTER += 1
+            # check to see if the eye aspect ratio is below the blink threshold, and if so, increment the blink frame counter
+            if ear < EYE_AR_THRESH:
+                COUNTER += 1
 
 
-        # otherwise, the eye aspect ratio is not below the blink threshold
-        else:
-        # if the eyes were closed for a sufficient number of
-        # then increment the total number of blinks
-            if COUNTER >= EYE_AR_CONSEC_FRAMES:
-                TOTAL += 1
+            # otherwise, the eye aspect ratio is not below the blink threshold
+            else:
+            # if the eyes were closed for a sufficient number of
+            # then increment the total number of blinks
+                if COUNTER >= EYE_AR_CONSEC_FRAMES:
+                    TOTAL += 1
 
-            # reset the eye frame counter
-            COUNTER = 0
+                # reset the eye frame counter
+                COUNTER = 0
 
-        # draw the total number of blinks on the frame along with the computed eye aspect ratio for the frame
-        cv2.putText(frame, "Blinks: {}".format(TOTAL), (10, 30),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        cv2.putText(frame, "EAR: {:.2f}".format(ear), (300, 30),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2);print("Eye Blinks =", TOTAL)
- 
-    # show the frame
-    cv2.imshow("Frame", frame)
-    key = cv2.waitKey(1) & 0xFF
-    # if the `q` key was pressed, break from the loop
-    if key == ord("q"):
+            # draw the total number of blinks on the frame along with the computed eye aspect ratio for the frame
+            cv2.putText(frame, "Blinks: {}".format(TOTAL), (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            cv2.putText(frame, "EAR: {:.2f}".format(ear), (300, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2);print("Eye Blinks =", TOTAL)
+            cv2.putText(frame,"Calculated avg EAR threshold: {:.2f}".format(EYE_AR_THRESH), (300,60),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        # show the frame
+        cv2.imshow("Frame", frame)
+        key = cv2.waitKey(1)
+    else:
         break
-print("The number of is blinks = ",TOTAL)
-print("Number of frames shown: ", count)
+
+print("The number of blinks = ",TOTAL)
+print("Number of frames shown: ",count)
+print("Average EAR Threshold: ",EYE_AR_THRESH)
 
 # do a bit of cleanup
 cap.release()
