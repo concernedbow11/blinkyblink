@@ -10,6 +10,7 @@
 * Written in Python 3.8.1
 * Uses openCV v4.4.0
 * Oh and I've set it to record only 40 frames at 10fps
+* Run the mainframe.py file to use the gui
 
 ##### This removes any imutils dependencies that would otherwise be required and instead either rewrites it or I've written cv2 alternatives for them
 
