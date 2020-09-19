@@ -1,2 +1,15 @@
 output.avi
 .vscode/
+popup.ui
+mainwindow.ui
+encodings.pickle
+facedetect.py
+facetrain.py
+sahil/2a9e069d-8602-4cf3-980b-c34cacc7a6da.jpg
+sahil/IMG_0463.JPG
+sahil/IMG_1065.JPG
+sahil/IMG_2097.JPG
+sahil/IMG_2213.JPG
+.gitignore
+sahil/IMG_7017.JPG
+main.py
