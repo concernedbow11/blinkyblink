@@ -22,4 +22,4 @@ License
 MIT
 
 
-**Free Software, Hell Yeah! I see clueless college kids using this for a hackthon. Shoo shoo go away...**
+**Free Software, Hell Yeah! I see clueless college kids using this for a hackthon.**
